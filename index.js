@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 const crypto = require('crypto');
 const inspect = require('util').inspect;
 const fs = require('fs');
@@ -7,9 +6,10 @@ const http = require('http');
 const https = require('https');
 const readline = require('readline');
 const urlLib = require('url');
+const sanitizeFilename = require('sanitize-filename');
 const ID3Writer = require('./browser-id3-writer/browser-id3-writer');
-const Duplex = require('stream').Duplex;
 const tmpName = require('./tmp/tmp.js').tmpName;
+
 
 
 const getDeezerImage = (type, id) =>
@@ -25,14 +25,23 @@ const concurrently = async (arr, callback) => {
 
 const getImageBuffer = url => new Promise((resolve, reject) => {
 	tmpName((err, path) => {
+		if(err){
+			return reject(err);
+		}
 		const stream = fs.createWriteStream(path);
 		https.get(url, res => {
 			res.pipe(stream);
 		});
+		stream.on('error', reject);
 		stream.on('close', () => {
 			const buffer = fs.readFileSync(path);
-			resolve(buffer);
-			fs.unlink(path, err => {});
+			fs.unlink(path, err => {
+				if(err){
+					reject(err);
+				}else{
+					resolve(buffer);
+				}
+			});
 		});
 	})
 });
@@ -101,11 +110,15 @@ const getTrackUrl = trackInfos => {
 
 const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, reject) => {
 	http.get(url, response => {
+		if(response.statusCode !== 200){
+			return reject(new Error('not OK'));
+		}
 
 		const contentLength = Number(response.headers['content-length']);
 		let i = 0;
 		let percent = 0;
 
+		response.on('error', reject);
 		response.on('readable', () => {
 			let chunk;
 			while(chunk = response.read(2048)) {
@@ -140,15 +153,17 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 
 const getTrackInfos = trackId => request('https://www.deezer.com/track/'  + trackId).then(htmlString => {
 	const PLAYER_INIT = htmlString.match(/track: ({.+}),/);
-	return JSON.parse(PLAYER_INIT[1]).data[0];
+	try{
+		return JSON.parse(PLAYER_INIT[1]).data[0];
+	}catch(err){
+		return undefined;
+	}
 });
-const getAlbumData = albumId => request('https://api.deezer.com/album/' + albumId).then(JSON.parse);
-const getPlaylistData = playlistId => request('https://api.deezer.com/playlist/' + playlistId).then(JSON.parse);
 
 const getMetadata = async (trackInfos, albumData) => {
-	const coverImageBuffer = await getImageBuffer(albumData.cover_big);
+	const coverImageBuffer = await getImageBuffer(albumData.cover_big).catch(() => undefined);
 
-	return{
+	const metadata = {
 		TIT2: (trackInfos.SNG_TITLE + ' ' + trackInfos.VERSION).trim(),
 		TALB: albumData.title,
 		TPE1: trackInfos.ARTISTS.map(ARTIST => ARTIST.ART_NAME),
@@ -159,71 +174,112 @@ const getMetadata = async (trackInfos, albumData) => {
 		TRCK: trackInfos.TRACK_NUMBER + '/' + albumData.tracks.data.length,
 		TYER: parseInt(trackInfos.PHYSICAL_RELEASE_DATE),
 		WCOP: trackInfos.COPYRIGHT,
-		TPUB: albumData.label,
-		APIC: {
+		TPUB: albumData.label
+	};
+
+	if(coverImageBuffer){
+		metadata.APIC = {
 			type: 3,
 			data: coverImageBuffer,
 			description: (albumData.title.replace(/[^\w\s]/g, '').trim() + ' cover image').trim()
-		}
-	};
+		};
+	}
+
+	return metadata;
 };
 
 
 
-const downloadTrack = async trackId => {
+const downloadTrack = async track => {
 	readline.clearLine(process.stdout, 0);
 	readline.cursorTo(process.stdout, 0);
+	
+	const basicArtist = track.artist.name;
+	const basicTitle = track.title;
+	const filename = sanitizeFilename(basicArtist + ' - ' + basicTitle + '.mp3');
+	if(fs.existsSync(filename)){
+		process.stdout.write(filename + ' already exists. Skipping...\n');
+		return;
+	}
+
 	process.stdout.write('Fetching track data...');
-	const trackInfos = await getTrackInfos(trackId);
+	const trackInfos = await getTrackInfos(track.id).catch(err => {
+		if(typeof track.alternative === 'object'){
+			return getTrackInfos(track.alternative.id);
+		}else{
+			throw err;
+		}
+	}).catch(() => {
+		process.stdout.write('\rError occured on track info fetching! Track ID: ' + trackId + '\n');
+	});
+	
+	
+	if(typeof trackInfos === 'undefined') return;
 	process.stdout.write('\rFetching album data...');
-	const albumData = await getAlbumData(trackInfos.ALB_ID);
+	const albumData = await request('https://api.deezer.com/album/' + trackInfos.ALB_ID).then(JSON.parse).catch(() => { process.stdout.write('\rError occured on album data fetching! Track ID: ' + trackId + '\n'); });
+	if(typeof albumData === 'undefined') return;
 	process.stdout.write('\rExtracting fetched metadata...');
-	const metadata = await getMetadata(trackInfos, albumData);
+	const metadata = await getMetadata(trackInfos, albumData).catch(console.error);
+	if(typeof metadata === 'undefined') return;
 	readline.clearLine(process.stdout, 0);
 	const mainArtist = metadata.TPE1.includes(metadata.TPE2) ? metadata.TPE2 : metadata.TPE1[0];
 
-	process.stdout.write('\r' + mainArtist + ' - ' + metadata.TIT2 + '\n');
+	process.stdout.write('\r' + basicArtist + ' - ' + basicTitle + '\n');
 	
 	const url = getTrackUrl(trackInfos);
 	const bfKey = getBlowfishKey(trackInfos);
 
-	const fileName =
-		(mainArtist + ' - ' + metadata.TIT2)
-		.replace(/[|&;$%@"<>()+,]/g, '')
-		+ '.mp3';
+	let writeStream;
+	try{
+		writeStream = fs.createWriteStream(filename, {flags: 'wx'});
+	}catch(err){
+		console.log(err);
+		process.stdout.write(filename + ' appeared while fetched the metadatas. Skipping...\n');
+		return;
+	}
 
-	const exists = fs.existsSync(fileName);
-	if(exists){
-		process.stdout.write('This song already exists. Skipping...\n');
+	const streamingSuccess = await streamTrack(trackInfos, url, bfKey, writeStream).then(() => true).catch(err => false);
+	if(!streamingSuccess){
+		process.stdout.write('Stream errored while downloading!\n');
+		fs.unlink(filename);
 		return;
 	}
 	
-	await streamTrack(trackInfos, url, bfKey, fs.createWriteStream(fileName));
-	
 	process.stdout.write('\rAdding tags...');
-	const songBuffer = fs.readFileSync(fileName);
+	const songBuffer = fs.readFileSync(filename);
 	const writer = new ID3Writer(songBuffer);
 	Object.keys(metadata).forEach(key => {
 		writer.setFrame(key, metadata[key]);
 	});
 	writer.addTag();
 	const taggedSongBuffer = Buffer.from(writer.arrayBuffer);
-	fs.writeFileSync(fileName, taggedSongBuffer);
+	fs.writeFileSync(filename, taggedSongBuffer);
 
 	process.stdout.write('\rDownloaded!   ');
 };
-const downloadAlbum = async albumId => {
-	const albumData = await getAlbumData(albumId);
-	for(const track of albumData.tracks.data){
-		await downloadTrack(track.id);
+
+const downloadTracks = async url => {
+	process.stdout.write('Fetching tracks...');
+	const x = await request(url + '&limit=1000').then(JSON.parse);
+	for(const track of x.data){
+		await downloadTrack(track);
+	}
+	if(typeof x.next === 'string'){
+		return await downloadTracks(x.next);
+	}else{
+		return;
 	}
 };
-const downloadPlaylist = async playlistId => {
-	const playlistData = await getPlaylistData(playlistId);
-	for(const track of playlistData.tracks.data){
-		await downloadTrack(track.id);
-	}
-};
+
+const handleAlbumDownload = async albumId =>
+	await downloadTracks('https://api.deezer.com/album/' + albumId + '/tracks');
+	
+const handlePlaylistDownload = async playlistId => 
+	await downloadTracks('https://api.deezer.com/playlist/' + playlistId + '/tracks');
+
+const handleTrackDownload = async trackId =>
+	await request('https://api.deezer.com/track/' + trackId).then(JSON.parse).then(downloadTrack);
+
 
 
 
@@ -232,9 +288,9 @@ const comm = args[0];
 const ids = args.slice(1);
 
 if(comm === 'album'){
-	concurrently(ids, downloadAlbum);
+	concurrently(ids, handleAlbumDownload);
 }else if(comm === 'playlist'){
-	concurrently(ids, downloadPlaylist);
+	concurrently(ids, handlePlaylistDownload);
 }else if(comm === 'track'){
 	concurrently(ids, downloadTrack);
 }else{

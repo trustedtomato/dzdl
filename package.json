@@ -17,5 +17,8 @@
   "bugs": {
     "url": "https://github.com/trustedtomato/dzdl/issues"
   },
-  "homepage": "https://github.com/trustedtomato/dzdl#readme"
+  "homepage": "https://github.com/trustedtomato/dzdl#readme",
+  "dependencies": {
+    "sanitize-filename": "^1.6.1"
+  }
 }
