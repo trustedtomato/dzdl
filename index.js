@@ -50,6 +50,8 @@ const request = (url, options = {}) => new Promise((resolve, reject) => {
 	const urlParts = urlLib.parse(url);
 	const lib = urlParts.protocol === 'http:' ? http : https;
 
+	console.log(url);
+
 	lib.get({
 		host: urlParts.host,
 		path: urlParts.path,
@@ -57,9 +59,9 @@ const request = (url, options = {}) => new Promise((resolve, reject) => {
 			'Accept-Language': 'en-US'
 		}
 	}, resp => {
-		if(resp.statusCode >= 300 && resp.statusCode < 400){
-			request(resp.headers.location, options).then(resolve).catch(reject);
-			resp.destroy();	
+		if(resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location){
+			request(urlLib.resolve(url, resp.headers.location), options).then(resolve).catch(reject);
+			resp.destroy();
 		}else if(resp.statusCode === 200){
 			let body = '';
 			resp.on('data', chunk => {
