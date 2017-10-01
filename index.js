@@ -163,7 +163,7 @@ const getTrackInfos = trackId => request('https://www.deezer.com/track/'  + trac
 });
 
 const getMetadata = async (trackInfos, albumData) => {
-	const coverImageBuffer = await getImageBuffer(albumData.cover_big).catch(() => undefined);
+	const coverImageBuffer = await getImageBuffer(albumData.cover_xl).catch(() => undefined);
 
 	const metadata = {
 		TIT2: (trackInfos.SNG_TITLE + ' ' + trackInfos.VERSION).trim(),
@@ -175,7 +175,6 @@ const getMetadata = async (trackInfos, albumData) => {
 		TPOS: trackInfos.DISK_NUMBER,
 		TRCK: trackInfos.TRACK_NUMBER + '/' + albumData.tracks.data.length,
 		TYER: parseInt(trackInfos.PHYSICAL_RELEASE_DATE),
-		WCOP: trackInfos.COPYRIGHT,
 		TPUB: albumData.label
 	};
 
@@ -284,7 +283,6 @@ const handleTrackDownload = async trackId =>
 
 
 
-
 const args = process.argv.slice(2);
 const comm = args[0];
 const ids = args.slice(1);
@@ -294,7 +292,7 @@ if(comm === 'album'){
 }else if(comm === 'playlist'){
 	concurrently(ids, handlePlaylistDownload);
 }else if(comm === 'track'){
-	concurrently(ids, downloadTrack);
+	concurrently(ids, handleTrackDownload);
 }else{
 	console.log(
 `
