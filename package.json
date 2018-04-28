@@ -19,6 +19,8 @@
   },
   "homepage": "https://github.com/trustedtomato/dzdl#readme",
   "dependencies": {
+    "browser-id3-writer": "^4.0.0",
+    "node-fetch": "^2.1.2",
     "sanitize-filename": "^1.6.1"
   }
 }

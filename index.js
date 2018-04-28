@@ -2,15 +2,15 @@
 const crypto = require('crypto');
 const inspect = require('util').inspect;
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
 const readline = require('readline');
-const urlLib = require('url');
 const sanitizeFilename = require('sanitize-filename');
-const ID3Writer = require('./browser-id3-writer/browser-id3-writer');
-const tmpName = require('./tmp/tmp.js').tmpName;
+const ID3Writer = require('browser-id3-writer');
+const {default: fetch} = require('node-fetch');
+const querystring = require('querystring');
+const {join} = require('path');
 
 
+let global_sid;
 
 const getDeezerImage = (type, id) =>
 	'https://e-cdns-images.dzcdn.net/images/' + type + '/' + id + '/500x500.jpg';
@@ -23,65 +23,26 @@ const concurrently = async (arr, callback) => {
 	return results;
 };
 
-const getImageBuffer = url => new Promise((resolve, reject) => {
-	tmpName((err, path) => {
-		if(err){
-			return reject(err);
-		}
-		const stream = fs.createWriteStream(path);
-		https.get(url, res => {
-			res.pipe(stream);
-		});
-		stream.on('error', reject);
-		stream.on('close', () => {
-			const buffer = fs.readFileSync(path);
-			fs.unlink(path, err => {
-				if(err){
-					reject(err);
-				}else{
-					resolve(buffer);
-				}
-			});
-		});
-	})
-});
+const getBuffer = url => fetch(url).then(response => response.buffer());
 
-const request = (url, options = {}) => new Promise((resolve, reject) => {
-	const urlParts = urlLib.parse(url);
-	const lib = urlParts.protocol === 'http:' ? http : https;
-
-	console.log(url);
-
-	lib.get({
-		host: urlParts.host,
-		path: urlParts.path,
-		headers: {
-			'Accept-Language': 'en-US'
-		}
-	}, resp => {
-		if(resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location){
-			request(urlLib.resolve(url, resp.headers.location), options).then(resolve).catch(reject);
-			resp.destroy();
-		}else if(resp.statusCode === 200){
-			let body = '';
-			resp.on('data', chunk => {
-				body += chunk;
-			});
-			resp.on('end', () => {
-				if(options.buffer){
-					resolve(Buffer.from(body));
-				}else{
-					resolve(body);
-				}
-			});
-			resp.on('error', err => {
-				reject(err);
-			});
-		}else{
-			reject(resp);
-		}
+const getSid = (mail, password) => {
+	var data = querystring.stringify({
+		type: 'login',
+		mail,
+		password
 	});
-});
+
+	return fetch('https://www.deezer.com/ajax/action.php', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded',
+			'Content-Length': Buffer.byteLength(data)
+		},
+		body: data
+	}).then(res => {
+		return new Map(res.headers.get('set-cookie').split(';').map(cookie => cookie.split('='))).get('sid')
+	});
+};
 
 const getBlowfishKey = trackInfos => {
 	const SECRET = 'g4el58wc0zvf9na1';
@@ -111,20 +72,20 @@ const getTrackUrl = trackInfos => {
 }
 
 const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, reject) => {
-	http.get(url, response => {
-		if(response.statusCode !== 200){
+	fetch(url).then(response => {
+		if(response.status !== 200){
 			return reject(new Error('not OK'));
 		}
 
-		const contentLength = Number(response.headers['content-length']);
+		const contentLength = Number(response.headers.get('content-length'));
 		let i = 0;
 		let percent = 0;
 
-		response.on('error', reject);
-		response.on('readable', () => {
+		response.body.on('error', reject);
+		response.body.on('readable', () => {
 			let chunk;
-			while(chunk = response.read(2048)) {
-				let newPercent = Math.floor(2048 * 100 * i / Number(response.headers['content-length']));
+			while(chunk = response.body.read(2048)) {
+				let newPercent = Math.floor(2048 * 100 * i / contentLength);
 				if(percent !== newPercent){
 					process.stdout.write('\r' + newPercent + '%');
 				}
@@ -143,7 +104,7 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 				i++;
 			}
 		});
-		response.on('end', () => {
+		response.body.on('end', () => {
 			process.stdout.write('\r100%');
 			stream.end();
 			resolve(trackInfos);
@@ -153,17 +114,20 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 
 
 
-const getTrackInfos = trackId => request('https://www.deezer.com/track/'  + trackId).then(htmlString => {
-	const PLAYER_INIT = htmlString.match(/track: ({.+}),/);
-	try{
-		return JSON.parse(PLAYER_INIT[1]).data[0];
-	}catch(err){
-		return undefined;
-	}
-});
+const getTrackInfos = trackId =>
+	fetch('https://www.deezer.com/track/'  + trackId, {headers: {cookie: 'sid='+global_sid}})
+		.then(resp => resp.text())
+		.then(htmlString => {
+			const PLAYER_INIT = htmlString.match(/track: ({.+}),/);
+			try{
+				return JSON.parse(PLAYER_INIT[1]).data[0];
+			}catch(err){
+				return undefined;
+			}
+		});
 
 const getMetadata = async (trackInfos, albumData) => {
-	const coverImageBuffer = await getImageBuffer(albumData.cover_xl).catch(() => undefined);
+	const coverImageBuffer = await getBuffer(albumData.cover_xl).catch(() => undefined);
 
 	const metadata = {
 		TIT2: (trackInfos.SNG_TITLE + ' ' + trackInfos.VERSION).trim(),
@@ -211,13 +175,13 @@ const downloadTrack = async track => {
 			throw err;
 		}
 	}).catch(() => {
-		process.stdout.write('\rError occured on track info fetching! Track ID: ' + trackId + '\n');
+		process.stdout.write('\rError occured on track info fetching! Track ID: ' + track.id + '\n');
 	});
 	
 	
 	if(typeof trackInfos === 'undefined') return;
 	process.stdout.write('\rFetching album data...');
-	const albumData = await request('https://api.deezer.com/album/' + trackInfos.ALB_ID).then(JSON.parse).catch(() => { process.stdout.write('\rError occured on album data fetching! Track ID: ' + trackId + '\n'); });
+	const albumData = await fetch('https://api.deezer.com/album/' + trackInfos.ALB_ID).then(resp => resp.json()).catch(() => { process.stdout.write('\rError occured on album data fetching! Track ID: ' + track.id + '\n'); });
 	if(typeof albumData === 'undefined') return;
 	process.stdout.write('\rExtracting fetched metadata...');
 	const metadata = await getMetadata(trackInfos, albumData).catch(console.error);
@@ -239,10 +203,11 @@ const downloadTrack = async track => {
 		return;
 	}
 
-	const streamingSuccess = await streamTrack(trackInfos, url, bfKey, writeStream).then(() => true).catch(err => false);
-	if(!streamingSuccess){
-		process.stdout.write('Stream errored while downloading!\n');
-		fs.unlink(filename);
+	try{
+		await streamTrack(trackInfos, url, bfKey, writeStream);
+	}catch(err){
+		console.error(err);
+		fs.unlink(filename, () => {});
 		return;
 	}
 	
@@ -261,7 +226,7 @@ const downloadTrack = async track => {
 
 const downloadTracks = async url => {
 	process.stdout.write('Fetching tracks...');
-	const x = await request(url + '&limit=1000').then(JSON.parse);
+	const x = await fetch(url + '&limit=1000').then(resp => resp.json());
 	for(const track of x.data){
 		await downloadTrack(track);
 	}
@@ -279,24 +244,18 @@ const handlePlaylistDownload = async playlistId =>
 	await downloadTracks('https://api.deezer.com/playlist/' + playlistId + '/tracks');
 
 const handleTrackDownload = async trackId =>
-	await request('https://api.deezer.com/track/' + trackId).then(JSON.parse).then(downloadTrack);
+	await fetch('https://api.deezer.com/track/' + trackId).then(resp => resp.json()).then(downloadTrack);
 
 
 
-const args = process.argv.slice(2);
-const comm = args[0];
-const ids = args.slice(1);
+const q = process.argv.slice(2).join(' ');
+const data = fs.readFileSync(join(__dirname, 'data.txt'), 'utf8').split(/\r?\n/g);
 
-if(comm === 'album'){
-	concurrently(ids, handleAlbumDownload);
-}else if(comm === 'playlist'){
-	concurrently(ids, handlePlaylistDownload);
-}else if(comm === 'track'){
-	concurrently(ids, handleTrackDownload);
-}else{
-	console.log(
-`
-Usage: dzdl <command> <id>
-`
-	);
-}
+getSid(...data)
+	.then(sid => global_sid = sid)
+	.then(() => fetch('https://api.deezer.com/search?q=' + encodeURIComponent(q)))
+	.then(res => res.json())
+	.then(res => res.data[0].id)
+	.then(id => fetch('https://api.deezer.com/track/' + id))
+	.then(resp => resp.json())
+	.then(downloadTrack);
