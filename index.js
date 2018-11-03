@@ -103,6 +103,7 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 		}
 
 		const source = Buffer.from(body, 'binary');
+		console.log(source.length);
 
 		let i = 0;
 		let position = 0;
