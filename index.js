@@ -102,12 +102,12 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 			return reject(new Error('not OK'));
 		}
 
-		const source = new Buffer(body, 'binary');
+		const source = Buffer.from(body, 'binary');
 
 		let i = 0;
 		let position = 0;
 
-		const destBuffer = new Buffer(source.length);
+		const destBuffer = Buffer.alloc(source.length);
 		
 		while(position < source.length) {
 			var chunk;
@@ -116,12 +116,12 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 			} else {
 				chunk_size = source.length - position;
 			}
-			chunk = new Buffer(chunk_size);
+			chunk = Buffer.alloc(chunk_size);
 			source.copy(chunk, 0, position, position + chunk_size);
 			if(i % 3 > 0 || chunk_size < 2048){
 				//Do nothing
 			}else{
-				var cipher = crypto.createDecipheriv('bf-cbc', bfKey, new Buffer([0, 1, 2, 3, 4, 5, 6, 7]));
+				var cipher = crypto.createDecipheriv('bf-cbc', bfKey, Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]));
 				cipher.setAutoPadding(false);
 				chunk = cipher.update(chunk, 'binary', 'binary') + cipher.final();
 			}
