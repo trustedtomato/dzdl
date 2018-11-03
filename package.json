@@ -6,7 +6,7 @@
   "author": "",
   "license": "ISC",
   "bin": {
-    "mdown": "./index.js"
+    "dzdl": "./index.js"
   },
   "dependencies": {
     "browser-id3-writer": "^4.0.0",
