@@ -120,8 +120,10 @@ const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, re
 			chunk = Buffer.alloc(chunk_size);
 			source.copy(chunk, 0, position, position + chunk_size);
 			if(i % 3 > 0 || chunk_size < 2048){
+				console.log('-');
 				//Do nothing
 			}else{
+				console.log('+');
 				var cipher = crypto.createDecipheriv('bf-cbc', bfKey, Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]));
 				cipher.setAutoPadding(false);
 				chunk = cipher.update(chunk, 'binary', 'binary') + cipher.final();
