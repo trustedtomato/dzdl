@@ -1,26 +1,17 @@
 {
-  "name": "dzdl",
+  "name": "mdown",
   "version": "1.0.0",
-  "description": "Download from Deezer from the command line.",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/trustedtomato/dzdl.git"
-  },
-  "bin": {
-    "dzdl": "./index.js"
-  },
-  "author": "Halasi Tamás <trusted.tomato@gmail.com>",
+  "description": "",
+  "main": "index.js",
+  "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/trustedtomato/dzdl/issues"
+  "bin": {
+    "mdown": "./index.js"
   },
-  "homepage": "https://github.com/trustedtomato/dzdl#readme",
   "dependencies": {
     "browser-id3-writer": "^4.0.0",
-    "node-fetch": "^2.1.2",
+    "prompt": "^1.0.0",
+    "request": "^2.88.0",
     "sanitize-filename": "^1.6.1"
   }
 }
