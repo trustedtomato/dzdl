@@ -1,5 +1,5 @@
 {
-  "name": "mdown",
+  "name": "dzdl",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -7,6 +7,9 @@
   "license": "ISC",
   "bin": {
     "dzdl": "./index.js"
+  },
+  "scripts": {
+    "update": "git fetch --all && git reset --hard origin/master && npm install"
   },
   "dependencies": {
     "browser-id3-writer": "^4.0.0",
