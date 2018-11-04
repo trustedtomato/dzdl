@@ -8,8 +8,9 @@
   "bin": {
     "dzdl": "./index.js"
   },
+  "preferGlobal": true,
   "scripts": {
-    "update": "git fetch --all && git reset --hard origin/master && npm install"
+    "update": "git fetch --all && git reset --hard origin/master && npm install --global"
   },
   "dependencies": {
     "browser-id3-writer": "^4.0.0",
