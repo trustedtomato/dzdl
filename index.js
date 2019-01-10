@@ -313,10 +313,10 @@ const options = removeBy(args, arg => arg.startsWith('-'));
 const [command] = args.splice(0, 1);
 const flac = options.includes('--flac') || options.includes('-f');
 const help = `
-usage: mdown <type> <attrs> [--flac]
+usage: dzdl <type> <attrs> [--flac]
 if type = song or s: attrs are track, artist, album
 if type = album or a: attrs are album, artist
-example: mdown album 'dark side of the moon' 'pink floyd'
+example: dzdl album 'dark side of the moon' 'pink floyd'
 `.trim();
 const missingCreds = `
 Missing credential file!
@@ -364,6 +364,10 @@ yourdeezerpass
 				})
 				.then(songs => choose(songs, song => `${song.artist.name} - ${song.title} (${song.album.title})`))
 				.then(song => handleTrackDownload(song.id));
+			break;
+		case 'playlist':
+		case 'p':
+			await downloadTracks('https://api.deezer.com/playlist/' + args[0] + '/tracks');
 			break;
 		default:
 			throw help;
