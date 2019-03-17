@@ -70,10 +70,17 @@ const setUserSession = async () => {
 };
 
 const login = () => setUserSession().catch(async () => {
+  let initialArl = '';
+  try {
+    initialArl = readFileSync(join(__dirname, 'arl.txt'), { encoding: 'utf8' });
+  } catch (err) {
+    // continue as the file is just a helper for fucked up enviroments
+  }
   await prompts({
     type: 'text',
     name: 'value',
     message: 'What\'s your arl cookie\'s value?',
+    initial: initialArl,
     validate: async (arl) => {
       const creation = new Date();
       const lastUsed = new Date(creation.valueOf());
@@ -99,10 +106,15 @@ const login = () => setUserSession().catch(async () => {
 
       return setUserSession()
         .then(() => true)
-        .catch(() => false);
+        .catch(() => 'Cannot login with this arl!');
     },
+  }).then(({ value }) => {
+    if (!value) {
+      throw new Error('No valid arl cookie value entered!');
+    }
   });
 });
+
 
 const getBlowfishKey = (trackInfos) => {
   const SECRET = 'g4el58wc0zvf9na1';
