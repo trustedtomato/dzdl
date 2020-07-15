@@ -8,6 +8,7 @@ const pathLib = require('path');
 module.exports = async (paths) => {
   for (const path of paths) {
     try {
+      console.log(`Migrating ${path}...`);
       const id3 = await readId3(path);
       
       // get current version (defaults to 1.0.0)
@@ -29,7 +30,7 @@ module.exports = async (paths) => {
         await updateId3({ userDefinedText }, newPath);
       }
     } catch (err) {
-      console.error(`Couldn't process the ID3 tag of ${path}!`);
+      console.error(`Couldn't process the ID3 tag of ${path}!`, err);
     }
   }
 };
