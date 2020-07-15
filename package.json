@@ -10,8 +10,7 @@
   },
   "preferGlobal": true,
   "scripts": {
-    "update": "git fetch --all && git reset --hard origin/master && npm install --global",
-    "migrate-to-2": "node ./migrate-to-2.js"
+    "update": "git fetch --all && git reset --hard origin/master && npm install --global"
   },
   "dependencies": {
     "node-id3": "^0.1.17",
