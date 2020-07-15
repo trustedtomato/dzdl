@@ -4,6 +4,7 @@ const { rename } = require('fs/promises');
 const readId3 = promisify(id3.read.bind(id3));
 const updateId3 = promisify(id3.update.bind(id3));
 const pathLib = require('path');
+const sanitizeFilename = require('sanitize-filename');
 
 module.exports = async (paths) => {
   for (const path of paths) {
@@ -21,7 +22,7 @@ module.exports = async (paths) => {
         // migrate filename
         const newPath = pathLib.resolve(
           pathLib.dirname(path),
-          `${id3.artist} - ${id3.title} (${id3.album}).mp3`
+          sanitizeFilename(`${id3.artist} - ${id3.title} (${id3.album}).mp3`)
         );
         await rename(path, newPath);
 
