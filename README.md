@@ -8,9 +8,9 @@ MacOS, Linux and Windows (PowerShell) have it built-in,
 but on Android you have to install additional software (I use Termux).
 
 ## Install
-1. Clone this git respository
-2. `cd` into the directory
-3. Run `npm install --global`
+1. Clone this git respository.
+2. `cd` into the directory.
+3. Run `npm install --global`.
 4. `cd` into your music directory and start downloading music using `dzdl` (see `dzdl --help` for specific options).
 
 ## Bugs
