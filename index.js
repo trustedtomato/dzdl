@@ -412,7 +412,8 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
       break;
     case 'migrate-to-2':
       const paths = args;
-      require('./migrate-to-2')(paths);
+      const force = options.includes('--force') || options.includes('-f');
+      require('./migrate-to-2')(paths, force);
       break;
     default:
       throw help;

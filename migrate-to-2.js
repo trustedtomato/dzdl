@@ -6,7 +6,7 @@ const updateId3 = promisify(id3.update.bind(id3));
 const pathLib = require('path');
 const sanitizeFilename = require('sanitize-filename');
 
-module.exports = async (paths) => {
+module.exports = async (paths, force) => {
   for (const path of paths) {
     try {
       console.log(`Migrating ${path}...`);
@@ -17,7 +17,7 @@ module.exports = async (paths) => {
       const dzdlVersionObject = userDefinedText.find(text => text.description === 'dzdl-version');
       const dzdlVersion = typeof dzdlVersionObject === 'object' ? dzdlVersionObject.value : '1.0.0';
 
-      if (dzdlVersion.startsWith('1.')) {
+      if (dzdlVersion.startsWith('1.') || force) {
 
         // migrate filename
         const newPath = pathLib.resolve(
@@ -27,8 +27,10 @@ module.exports = async (paths) => {
         await rename(path, newPath);
 
         // update version
-        userDefinedText.push({ description: 'dzdl-version', value: '2.0.0' });
-        await updateId3({ userDefinedText }, newPath);
+        if (dzdlVersion !== '2.0.0') {
+          userDefinedText.push({ description: 'dzdl-version', value: '2.0.0' });
+          await updateId3({ userDefinedText }, newPath);
+        }
       }
     } catch (err) {
       console.error(`Couldn't process the ID3 tag of ${path}!`, err);
