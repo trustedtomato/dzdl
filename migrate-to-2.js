@@ -20,9 +20,13 @@ module.exports = async (paths, force) => {
       if (dzdlVersion.startsWith('1.') || force) {
 
         // migrate filename
+        // In ID3v2.3 the artists are separated by /,
+        // but since an artist's name may contain a slash (AC/DC),
+        // we should rather default to the album artist.
+        const artist = id3.artist.includes('/') ? id3.performerInfo : id3.artist;
         const newPath = pathLib.resolve(
           pathLib.dirname(path),
-          sanitizeFilename(`${id3.artist} - ${id3.title} (${id3.album}).mp3`)
+          sanitizeFilename(`${artist} - ${id3.title} (${id3.album}).mp3`)
         );
         await rename(path, newPath);
 
