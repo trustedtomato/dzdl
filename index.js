@@ -5,16 +5,18 @@ const {
   existsSync,
   createWriteStream,
   unlink,
-  writeFileSync,
 } = require('fs');
 const readline = require('readline');
 const sanitizeFilename = require('sanitize-filename');
-const ID3Writer = require('browser-id3-writer');
+const id3 = require('node-id3');
+const { promisify } = require('util');
+const writeId3 = promisify(id3.write.bind(id3));
 const { join } = require('path');
 const prompts = require('prompts');
 const tough = require('tough-cookie');
 const baseRequest = require('request');
 const FileCookieStore = require('./tough-cookie-store');
+const packageJson = JSON.parse(readFileSync(__dirname + '/package.json', 'utf-8'));
 
 const jar = baseRequest.jar(new FileCookieStore(join(__dirname, 'cookies.json')));
 const request = baseRequest.defaults({
@@ -199,21 +201,24 @@ const getMetadata = async (trackInfos, albumData) => {
   const metadata = {
     TIT2: `${trackInfos.SNG_TITLE} ${trackInfos.VERSION || ''}`.trim(),
     TALB: albumData.title,
-    TPE1: trackInfos.ARTISTS.map(ARTIST => ARTIST.ART_NAME),
+    TPE1: trackInfos.ARTISTS.map(ARTIST => ARTIST.ART_NAME).join('/'),
     TPE2: albumData.artist.name,
-    TCOM: trackInfos.SNG_CONTRIBUTORS.composer || [],
-    TCON: albumData.genres.data.map(genre => genre.name),
+    TCOM: (trackInfos.SNG_CONTRIBUTORS.composer || []).join('/'),
+    TCON: albumData.genres.data.map(genre => genre.name).join('/'),
     TPOS: trackInfos.DISK_NUMBER,
     TRCK: `${trackInfos.TRACK_NUMBER}/${albumData.tracks.data.length}`,
     TYER: parseInt(trackInfos.PHYSICAL_RELEASE_DATE, 10),
     TPUB: albumData.label,
+    TXXX: [{ description: 'dzdl-version', value: packageJson.version}]
   };
 
   if (coverImageBuffer) {
     metadata.APIC = {
-      type: 3,
-      data: coverImageBuffer,
-      description: (`${albumData.title.replace(/[^\w\s]/g, '').trim()} cover image`).trim(),
+      type: {
+        id: 3,
+        name: 'front cover'
+      },
+      imageBuffer: coverImageBuffer
     };
   }
 
@@ -227,8 +232,9 @@ const downloadTrack = async (track) => {
 
   const basicArtist = track.artist.name;
   const basicTitle = track.title;
+  const basicAlbum = track.album.title;
 
-  const basicFilename = sanitizeFilename(`${basicArtist} - ${basicTitle}`);
+  const basicFilename = sanitizeFilename(`${basicArtist} - ${basicTitle} (${basicAlbum})`);
   const extensions = ['mp3', 'flac'];
   const filenames = extensions.map(extension => `${basicFilename}.${extension}`);
   const existsFilename = filenames.find(existsSync);
@@ -258,7 +264,7 @@ const downloadTrack = async (track) => {
   readline.clearLine(process.stdout, 0);
   // const mainArtist = metadata.TPE1.includes(metadata.TPE2) ? metadata.TPE2 : metadata.TPE1[0];
 
-  process.stdout.write(`\r${basicArtist} - ${basicTitle}\n`);
+  process.stdout.write(`\r${basicFilename}\n`);
 
   const format =
     (flac && trackInfos.FILESIZE_FLAC) ? 9 :
@@ -290,14 +296,7 @@ const downloadTrack = async (track) => {
 
   process.stdout.write('\rAdding tags...');
   if (format !== 9) {
-    const songBuffer = readFileSync(filename);
-    const writer = new ID3Writer(songBuffer);
-    Object.keys(metadata).forEach((key) => {
-      writer.setFrame(key, metadata[key]);
-    });
-    writer.addTag();
-    const taggedSongBuffer = Buffer.from(writer.arrayBuffer);
-    writeFileSync(filename, taggedSongBuffer);
+    await writeId3(metadata, filename);
   }
 
   process.stdout.write('\rDownloaded!   \n');
@@ -410,6 +409,10 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
     case 'playlist':
     case 'p':
       await downloadTracks(`https://api.deezer.com/playlist/${args[0]}/tracks`);
+      break;
+    case 'migrate-to-2':
+      const paths = args;
+      require('./migrate-to-2')(paths);
       break;
     default:
       throw help;

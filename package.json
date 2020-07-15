@@ -1,6 +1,6 @@
 {
   "name": "dzdl",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "author": "",
@@ -10,10 +10,11 @@
   },
   "preferGlobal": true,
   "scripts": {
-    "update": "git fetch --all && git reset --hard origin/master && npm install --global"
+    "update": "git fetch --all && git reset --hard origin/master && npm install --global",
+    "migrate-to-2": "node ./migrate-to-2.js"
   },
   "dependencies": {
-    "browser-id3-writer": "^4.0.0",
+    "node-id3": "^0.1.17",
     "prompts": "^2.0.4",
     "request": "^2.88.0",
     "sanitize-filename": "^1.6.1",
