@@ -197,7 +197,7 @@ const getMetadata = async (trackInfos, albumData) => {
   const coverImageBuffer = await getBuffer(albumData.cover_xl).catch(() => undefined);
 
   const metadata = {
-    TIT2: `${trackInfos.SNG_TITLE} ${trackInfos.VERSION}`.trim(),
+    TIT2: `${trackInfos.SNG_TITLE} ${trackInfos.VERSION || ''}`.trim(),
     TALB: albumData.title,
     TPE1: trackInfos.ARTISTS.map(ARTIST => ARTIST.ART_NAME),
     TPE2: albumData.artist.name,
