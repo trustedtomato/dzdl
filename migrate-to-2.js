@@ -21,8 +21,10 @@ module.exports = async (paths, force) => {
 
         // migrate filename
         // In ID3v2.3 the artists are separated by /,
-        // but since an artist's name may contain a slash (AC/DC),
-        // we should rather default to the album artist.
+        // but an artist's name can contain / too (AC/DC),
+        // so if there is a /, it's impossible to know
+        // who the leading artist is (AC or AC/DC?).
+        // So in this case, we default to the album artist.
         const artist = id3.artist.includes('/') ? id3.performerInfo : id3.artist;
         const newPath = pathLib.resolve(
           pathLib.dirname(path),
