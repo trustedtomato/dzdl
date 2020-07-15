@@ -230,9 +230,9 @@ const downloadTrack = async (track) => {
   readline.clearLine(process.stdout, 0);
   readline.cursorTo(process.stdout, 0);
 
-  const basicArtist = track.artist.name;
+  const basicArtist = track.artist;
   const basicTitle = track.title;
-  const basicAlbum = track.album.title;
+  const basicAlbum = track.album;
 
   const basicFilename = sanitizeFilename(`${basicArtist} - ${basicTitle} (${basicAlbum})`);
   const extensions = ['mp3', 'flac'];
@@ -246,8 +246,8 @@ const downloadTrack = async (track) => {
 
   process.stdout.write('Fetching track data...');
   const trackInfos = await getTrackInfos(track.id).catch((err) => {
-    if (typeof track.alternative === 'object') {
-      return getTrackInfos(track.alternative.id);
+    if (track.alternativeId) {
+      return getTrackInfos(track.alternativeId);
     }
     throw err;
   }).catch(() => {
@@ -281,7 +281,7 @@ const downloadTrack = async (track) => {
   try {
     writeStream = createWriteStream(filename, { flags: 'wx' });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     process.stdout.write(`${filename} appeared while fetched the metadatas. Skipping...\n`);
     return;
   }
@@ -302,11 +302,18 @@ const downloadTrack = async (track) => {
   process.stdout.write('\rDownloaded!   \n');
 };
 
-const downloadTracks = async (url) => {
+const downloadTracks = async (url, globalProperties = {}) => {
   process.stdout.write('Fetching tracks...');
   const x = await fetch(`${url}&limit=100`).then(JSON.parse);
   for (const track of x.data) {
-    await downloadTrack(track);
+    await downloadTrack({
+      id: track.id,
+      alternativeId: track.alternative && track.alternative.id,
+      artist: track.artist.name,
+      title: track.title,
+      album: track.album && track.album.title,
+      ...globalProperties
+    });
   }
   if (typeof x.next === 'string') {
     return downloadTracks(x.next);
@@ -314,9 +321,20 @@ const downloadTracks = async (url) => {
   return undefined;
 };
 
-const handleAlbumDownload = async albumId => downloadTracks(`https://api.deezer.com/album/${albumId}/tracks`);
+const handleAlbumDownload = async album => downloadTracks(`https://api.deezer.com/album/${album.id}/tracks`, {
+  album: album.title,
+});
 
-const handleTrackDownload = async trackId => fetch(`https://api.deezer.com/track/${trackId}`).then(JSON.parse).then(downloadTrack);
+const handleTrackDownload = async track => fetch(`https://api.deezer.com/track/${track.id}`)
+  .then(JSON.parse)
+  .then(track => ({
+    id: track.id,
+    alternativeId: track.alternative && track.alternative.id,
+    artist: track.artist.name,
+    title: track.title,
+    album: track.album.title,
+  }))
+  .then(downloadTrack);
 
 
 const removeBy = (arr, predicate) => {
@@ -377,14 +395,14 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
         })
         .then(albums => prompts({
           type: 'select',
-          name: 'albumId',
+          name: 'album',
           message: 'Pick an album',
           choices: albums.map(album => ({
             title: `${album.artist.name} - ${album.title}`,
-            value: album.id,
+            value: album,
           })),
         }))
-        .then(({ albumId }) => handleAlbumDownload(albumId));
+        .then(({ album }) => handleAlbumDownload(album));
       break;
     case 'song':
     case 's':
@@ -397,14 +415,14 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
         })
         .then(songs => prompts({
           type: 'select',
-          name: 'songId',
+          name: 'song',
           message: 'Pick a song',
           choices: songs.map(song => ({
             title: `${song.artist.name} - ${song.title} (${song.album.title})`,
-            value: song.id,
+            value: song,
           })),
         }))
-        .then(({ songId }) => handleTrackDownload(songId));
+        .then(({ song }) => handleTrackDownload(song));
       break;
     case 'playlist':
     case 'p':
