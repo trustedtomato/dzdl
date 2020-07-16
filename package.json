@@ -10,7 +10,7 @@
   },
   "preferGlobal": true,
   "scripts": {
-    "update": "git fetch --all && git reset --hard origin/master && npm install --global",
+    "update": "git fetch --all && git reset --hard origin/master && npm install --global --production",
     "test": "jest"
   },
   "dependencies": {
