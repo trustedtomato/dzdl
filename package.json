@@ -10,7 +10,8 @@
   },
   "preferGlobal": true,
   "scripts": {
-    "update": "git fetch --all && git reset --hard origin/master && npm install --global"
+    "update": "git fetch --all && git reset --hard origin/master && npm install --global",
+    "test": "jest"
   },
   "dependencies": {
     "node-id3": "^0.1.17",
@@ -18,5 +19,8 @@
     "request": "^2.88.0",
     "sanitize-filename": "^1.6.1",
     "tough-cookie": "^3.0.1"
+  },
+  "devDependencies": {
+    "jest": "^26.1.0"
   }
 }
