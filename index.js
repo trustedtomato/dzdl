@@ -1,24 +1,25 @@
 #!/usr/bin/env node
-const crypto = require('crypto');
+const crypto = require('crypto')
 const {
   readFileSync,
   existsSync,
   createWriteStream,
-  unlink,
-} = require('fs');
-const readline = require('readline');
-const sanitizeFilename = require('sanitize-filename');
-const id3 = require('node-id3');
-const { promisify } = require('util');
-const writeId3 = promisify(id3.write.bind(id3));
-const { join } = require('path');
-const prompts = require('prompts');
-const tough = require('tough-cookie');
-const baseRequest = require('request');
-const FileCookieStore = require('./tough-cookie-store');
-const packageJson = JSON.parse(readFileSync(__dirname + '/package.json', 'utf-8'));
+  unlink
+} = require('fs')
+const readline = require('readline')
+const sanitizeFilename = require('sanitize-filename')
+const id3 = require('node-id3')
+const { promisify } = require('util')
+const writeId3 = promisify(id3.write.bind(id3))
+const { join } = require('path')
+const prompts = require('prompts')
+const tough = require('tough-cookie')
+const baseRequest = require('request')
+const FileCookieStore = require('./tough-cookie-store')
+const pathLib = require('path')
+const packageJson = JSON.parse(readFileSync(pathLib.join(__dirname, '/package.json'), 'utf-8'))
 
-const jar = baseRequest.jar(new FileCookieStore(join(__dirname, 'cookies.json')));
+const jar = baseRequest.jar(new FileCookieStore(join(__dirname, 'cookies.json')))
 const request = baseRequest.defaults({
   jar,
   headers: {
@@ -27,54 +28,54 @@ const request = baseRequest.defaults({
     'Cache-Control': 'max-age=0',
     Accept: '*/*',
     'Accept-Charset': 'utf-8,ISO-8859-1;q=0.7,*;q=0.3',
-    'Accept-Language': 'de-DE,de;q=0.8,en-US;q=0.6,en;q=0.4',
-  },
-});
+    'Accept-Language': 'de-DE,de;q=0.8,en-US;q=0.6,en;q=0.4'
+  }
+})
 
-const apiUrl = 'http://www.deezer.com/ajax/gw-light.php';
+const apiUrl = 'http://www.deezer.com/ajax/gw-light.php'
 const apiQueries = {
   api_version: '1.0',
   api_token: 'null',
-  input: '3',
-};
+  input: '3'
+}
 
 const fetch = opts => new Promise((resolve, reject) => {
   request(opts, (err, resp, body) => {
     if (err) {
-      reject(err);
+      reject(err)
     } else {
-      resolve(body);
+      resolve(body)
     }
-  });
-});
+  })
+})
 
-const getBuffer = url => fetch({ url, encoding: null });
+const getBuffer = url => fetch({ url, encoding: null })
 
 const callApi = method => new Promise((resolve, reject) => {
   request.get({
     url: apiUrl,
     qs: Object.assign({ method }, apiQueries),
-    json: true,
-  }, ((err, res, body) => {
+    json: true
+  }, (err, res, body) => {
     if (!err && res.statusCode === 200) {
-      resolve(body.results);
+      resolve(body.results)
     } else {
-      reject(new Error('Unable to load deezer.com'));
+      reject(new Error('Unable to load deezer.com'))
     }
-  }));
-});
+  })
+})
 
 const setUserSession = async () => {
-  const userData = (await callApi('deezer.getUserData')).USER;
+  const userData = (await callApi('deezer.getUserData')).USER
   if (!userData.USER_ID) {
-    throw new Error('Not logged in!');
+    throw new Error('Not logged in!')
   }
-};
+}
 
 const login = () => setUserSession().catch(async () => {
-  let initialArl = '';
+  let initialArl = ''
   try {
-    initialArl = readFileSync(join(__dirname, 'arl.txt'), { encoding: 'utf8' });
+    initialArl = readFileSync(join(__dirname, 'arl.txt'), { encoding: 'utf8' })
   } catch (err) {
     // continue as the file is just a helper for fucked up enviroments
   }
@@ -84,10 +85,10 @@ const login = () => setUserSession().catch(async () => {
     message: 'What\'s your arl cookie\'s value?',
     initial: initialArl,
     validate: async (arl) => {
-      const creation = new Date();
-      const lastUsed = new Date(creation.valueOf());
-      const expires = new Date(creation.valueOf());
-      expires.setDate(expires.getDate() + 180);
+      const creation = new Date()
+      const lastUsed = new Date(creation.valueOf())
+      const expires = new Date(creation.valueOf())
+      expires.setDate(expires.getDate() + 180)
       const cookie = tough.Cookie.fromJSON({
         key: 'arl',
         value: arl,
@@ -98,105 +99,108 @@ const login = () => setUserSession().catch(async () => {
         httpOnly: true,
         hostOnly: false,
         creation: creation.toISOString(),
-        lastAccessed: lastUsed.toISOString(),
-      }).toString();
+        lastAccessed: lastUsed.toISOString()
+      }).toString()
 
       jar.setCookie(
         cookie,
-        'https://www.deezer.com/',
-      );
+        'https://www.deezer.com/'
+      )
 
       return setUserSession()
         .then(() => true)
-        .catch(() => 'Cannot login with this arl!');
-    },
+        .catch(() => 'Cannot login with this arl!')
+    }
   }).then(({ value }) => {
     if (!value) {
-      throw new Error('No valid arl cookie value entered!');
+      throw new Error('No valid arl cookie value entered!')
     }
-  });
-});
-
+  })
+})
 
 const getBlowfishKey = (trackInfos) => {
-  const SECRET = 'g4el58wc0zvf9na1';
+  const SECRET = 'g4el58wc0zvf9na1'
 
-  const idMd5 = crypto.createHash('md5').update(trackInfos.SNG_ID, 'ascii').digest('hex');
-  let bfKey = '';
+  const idMd5 = crypto.createHash('md5').update(trackInfos.SNG_ID, 'ascii').digest('hex')
+  let bfKey = ''
 
   for (let i = 0; i < 16; i += 1) {
     bfKey += String.fromCharCode(
       idMd5.charCodeAt(i) ^
       idMd5.charCodeAt(i + 16) ^
       SECRET.charCodeAt(i)
-    );
+    )
   }
 
-  return bfKey;
-};
+  return bfKey
+}
 
 const getTrackUrl = (trackInfos, fileFormat) => {
-  const step1 = [trackInfos.MD5_ORIGIN, fileFormat, trackInfos.SNG_ID, trackInfos.MEDIA_VERSION].join('¤');
+  const step1 = [trackInfos.MD5_ORIGIN, fileFormat, trackInfos.SNG_ID, trackInfos.MEDIA_VERSION].join('¤')
 
-  let step2 = `${crypto.createHash('md5').update(step1, 'ascii').digest('hex')}¤${step1}¤`;
-  while (step2.length % 16 > 0) step2 += ' ';
+  let step2 = `${crypto.createHash('md5').update(step1, 'ascii').digest('hex')}¤${step1}¤`
+  while (step2.length % 16 > 0) step2 += ' '
 
-  const step3 = crypto.createCipheriv('aes-128-ecb', 'jo6aey6haid2Teih', '').update(step2, 'ascii', 'hex');
-  const cdn = trackInfos.MD5_ORIGIN[0]; // random number between 0 and f
+  const step3 = crypto.createCipheriv('aes-128-ecb', 'jo6aey6haid2Teih', '').update(step2, 'ascii', 'hex')
+  const cdn = trackInfos.MD5_ORIGIN[0] // random number between 0 and f
 
-  return `http://e-cdn-proxy-${cdn}.deezer.com/mobile/1/${step3}`;
-};
+  return `http://e-cdn-proxy-${cdn}.deezer.com/mobile/1/${step3}`
+}
 
 const streamTrack = (trackInfos, url, bfKey, stream) => new Promise((resolve, reject) => {
   request.get({ url, encoding: null }, (err, res, body) => {
-    if (res.statusCode !== 200) {
-      reject(new Error('not OK'));
-      return;
+    if (err) {
+      reject(err)
+      return
     }
 
-    const source = Buffer.from(body, 'binary');
+    if (res.statusCode !== 200) {
+      reject(new Error('not OK'))
+      return
+    }
 
-    let i = 0;
-    let position = 0;
+    const source = Buffer.from(body, 'binary')
 
-    const destBuffer = Buffer.alloc(source.length);
+    let i = 0
+    let position = 0
+
+    const destBuffer = Buffer.alloc(source.length)
 
     while (position < source.length) {
-      const chunkSize = (source.length - position) ? 2048 : source.length - position;
-      let chunk;
-      chunk = Buffer.alloc(chunkSize);
-      source.copy(chunk, 0, position, position + chunkSize);
+      const chunkSize = (source.length - position) ? 2048 : source.length - position
+      let chunk
+      chunk = Buffer.alloc(chunkSize)
+      source.copy(chunk, 0, position, position + chunkSize)
       if (i % 3 > 0 || chunkSize < 2048) {
         // Do nothing
       } else {
-        const cipher = crypto.createDecipheriv('bf-cbc', bfKey, Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]));
-        cipher.setAutoPadding(false);
-        chunk = cipher.update(chunk, 'binary', 'binary') + cipher.final();
+        const cipher = crypto.createDecipheriv('bf-cbc', bfKey, Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]))
+        cipher.setAutoPadding(false)
+        chunk = cipher.update(chunk, 'binary', 'binary') + cipher.final()
       }
-      destBuffer.write(chunk.toString('binary'), position, 'binary');
-      position += chunkSize;
-      i += 1;
+      destBuffer.write(chunk.toString('binary'), position, 'binary')
+      position += chunkSize
+      i += 1
     }
 
-    stream.write(destBuffer);
-    stream.end();
-    stream.on('close', resolve);
-  });
-});
-
+    stream.write(destBuffer)
+    stream.end()
+    stream.on('close', resolve)
+  })
+})
 
 const getTrackInfos = trackId => fetch(`https://www.deezer.com/track/${trackId}`)
   .then((htmlString) => {
-    const PLAYER_INIT = htmlString.match(/__DZR_APP_STATE__\s*=\s*({.+?})\s*<\/script>/);
+    const PLAYER_INIT = htmlString.match(/__DZR_APP_STATE__\s*=\s*({.+?})\s*<\/script>/)
     try {
-      return JSON.parse(PLAYER_INIT[1]).DATA;
+      return JSON.parse(PLAYER_INIT[1]).DATA
     } catch (err) {
-      return undefined;
+      return undefined
     }
-  });
+  })
 
 const getMetadata = async (trackInfos, albumData) => {
-  const coverImageBuffer = await getBuffer(albumData.cover_xl).catch(() => undefined);
+  const coverImageBuffer = await getBuffer(albumData.cover_xl).catch(() => undefined)
 
   const metadata = {
     TIT2: `${trackInfos.SNG_TITLE} ${trackInfos.VERSION || ''}`.trim(),
@@ -209,8 +213,8 @@ const getMetadata = async (trackInfos, albumData) => {
     TRCK: `${trackInfos.TRACK_NUMBER}/${albumData.tracks.data.length}`,
     TYER: parseInt(trackInfos.PHYSICAL_RELEASE_DATE, 10),
     TPUB: albumData.label,
-    TXXX: [{ description: 'dzdl-version', value: packageJson.version}]
-  };
+    TXXX: [{ description: 'dzdl-version', value: packageJson.version }]
+  }
 
   if (coverImageBuffer) {
     metadata.APIC = {
@@ -219,92 +223,91 @@ const getMetadata = async (trackInfos, albumData) => {
         name: 'front cover'
       },
       imageBuffer: coverImageBuffer
-    };
+    }
   }
 
-  return metadata;
-};
-
+  return metadata
+}
 
 const downloadTrack = async (track) => {
-  readline.clearLine(process.stdout, 0);
-  readline.cursorTo(process.stdout, 0);
+  readline.clearLine(process.stdout, 0)
+  readline.cursorTo(process.stdout, 0)
 
-  const basicArtist = track.artist;
-  const basicTitle = track.title;
-  const basicAlbum = track.album;
+  const basicArtist = track.artist
+  const basicTitle = track.title
+  const basicAlbum = track.album
 
-  const basicFilename = sanitizeFilename(`${basicArtist} - ${basicTitle} (${basicAlbum})`);
-  const extensions = ['mp3', 'flac'];
-  const filenames = extensions.map(extension => `${basicFilename}.${extension}`);
-  const existsFilename = filenames.find(existsSync);
+  const basicFilename = sanitizeFilename(`${basicArtist} - ${basicTitle} (${basicAlbum})`)
+  const extensions = ['mp3', 'flac']
+  const filenames = extensions.map(extension => `${basicFilename}.${extension}`)
+  const existsFilename = filenames.find(existsSync)
 
   if (existsFilename) {
-    process.stdout.write(`${existsFilename} already exists. Skipping...\n`);
-    return;
+    process.stdout.write(`${existsFilename} already exists. Skipping...\n`)
+    return
   }
 
-  process.stdout.write('Fetching track data...');
+  process.stdout.write('Fetching track data...')
   const trackInfos = await getTrackInfos(track.id).catch((err) => {
     if (track.alternativeId) {
-      return getTrackInfos(track.alternativeId);
+      return getTrackInfos(track.alternativeId)
     }
-    throw err;
+    throw err
   }).catch(() => {
-    process.stdout.write(`\rError occured on track info fetching! Track ID: ${track.id}\n`);
-  });
+    process.stdout.write(`\rError occured on track info fetching! Track ID: ${track.id}\n`)
+  })
 
-  if (typeof trackInfos === 'undefined') return;
-  process.stdout.write('\rFetching album data...');
-  const albumData = await fetch(`https://api.deezer.com/album/${trackInfos.ALB_ID}`).then(JSON.parse).catch(() => { process.stdout.write(`\rError occured on album info fetching! Track ID: ${track.id}\n`); });
-  if (typeof albumData === 'undefined') return;
-  process.stdout.write('\rExtracting fetched metadata...');
-  const metadata = await getMetadata(trackInfos, albumData).catch(console.error);
-  if (typeof metadata === 'undefined') return;
-  readline.clearLine(process.stdout, 0);
+  if (typeof trackInfos === 'undefined') return
+  process.stdout.write('\rFetching album data...')
+  const albumData = await fetch(`https://api.deezer.com/album/${trackInfos.ALB_ID}`).then(JSON.parse).catch(() => { process.stdout.write(`\rError occured on album info fetching! Track ID: ${track.id}\n`) })
+  if (typeof albumData === 'undefined') return
+  process.stdout.write('\rExtracting fetched metadata...')
+  const metadata = await getMetadata(trackInfos, albumData).catch(console.error)
+  if (typeof metadata === 'undefined') return
+  readline.clearLine(process.stdout, 0)
   // const mainArtist = metadata.TPE1.includes(metadata.TPE2) ? metadata.TPE2 : metadata.TPE1[0];
 
-  process.stdout.write(`\r${basicFilename}\n`);
+  process.stdout.write(`\r${basicFilename}\n`)
 
   const format =
-    (flac && trackInfos.FILESIZE_FLAC) ? 9 :
-    (trackInfos.FILESIZE_MP3_320) ? 3 :
-    (trackInfos.FILESIZE_MP3_256) ? 5 :
-    1;
+    (flac && trackInfos.FILESIZE_FLAC) ? 9
+      : (trackInfos.FILESIZE_MP3_320) ? 3
+        : (trackInfos.FILESIZE_MP3_256) ? 5
+          : 1
 
-  const filename = `${basicFilename}.${format === 9 ? 'flac' : 'mp3'}`;
+  const filename = `${basicFilename}.${format === 9 ? 'flac' : 'mp3'}`
 
-  const url = getTrackUrl(trackInfos, format);
-  const bfKey = getBlowfishKey(trackInfos);
+  const url = getTrackUrl(trackInfos, format)
+  const bfKey = getBlowfishKey(trackInfos)
 
-  let writeStream;
+  let writeStream
   try {
-    writeStream = createWriteStream(filename, { flags: 'wx' });
+    writeStream = createWriteStream(filename, { flags: 'wx' })
   } catch (err) {
-    console.error(err);
-    process.stdout.write(`${filename} appeared while fetched the metadatas. Skipping...\n`);
-    return;
+    console.error(err)
+    process.stdout.write(`${filename} appeared while fetched the metadatas. Skipping...\n`)
+    return
   }
 
   try {
-    await streamTrack(trackInfos, url, bfKey, writeStream);
+    await streamTrack(trackInfos, url, bfKey, writeStream)
   } catch (err) {
-    console.error(err);
-    unlink(filename, () => {});
-    return;
+    console.error(err)
+    unlink(filename, () => {})
+    return
   }
 
-  process.stdout.write('\rAdding tags...');
+  process.stdout.write('\rAdding tags...')
   if (format !== 9) {
-    await writeId3(metadata, filename);
+    await writeId3(metadata, filename)
   }
 
-  process.stdout.write('\rDownloaded!   \n');
-};
+  process.stdout.write('\rDownloaded!   \n')
+}
 
 const downloadTracks = async (url, globalProperties = {}) => {
-  process.stdout.write('Fetching tracks...');
-  const x = await fetch(`${url}&limit=100`).then(JSON.parse);
+  process.stdout.write('Fetching tracks...')
+  const x = await fetch(`${url}&limit=100`).then(JSON.parse)
   for (const track of x.data) {
     await downloadTrack({
       id: track.id,
@@ -313,17 +316,17 @@ const downloadTracks = async (url, globalProperties = {}) => {
       title: track.title,
       album: track.album && track.album.title,
       ...globalProperties
-    });
+    })
   }
   if (typeof x.next === 'string') {
-    return downloadTracks(x.next);
+    return downloadTracks(x.next)
   }
-  return undefined;
-};
+  return undefined
+}
 
 const handleAlbumDownload = async album => downloadTracks(`https://api.deezer.com/album/${album.id}/tracks`, {
-  album: album.title,
-});
+  album: album.title
+})
 
 const handleTrackDownload = async track => fetch(`https://api.deezer.com/track/${track.id}`)
   .then(JSON.parse)
@@ -332,20 +335,19 @@ const handleTrackDownload = async track => fetch(`https://api.deezer.com/track/$
     alternativeId: track.alternative && track.alternative.id,
     artist: track.artist.name,
     title: track.title,
-    album: track.album.title,
+    album: track.album.title
   }))
-  .then(downloadTrack);
-
+  .then(downloadTrack)
 
 const removeBy = (arr, predicate) => {
-  const results = [];
+  const results = []
   for (let i = arr.length - 1; i >= 0; i -= 1) {
     if (predicate(arr[i])) {
-      results.push(...arr.splice(i, 1));
+      results.push(...arr.splice(i, 1))
     }
   }
-  return results;
-};
+  return results
+}
 
 const search = (type, q) => fetch(`https://api.deezer.com/search/${type}?q=${
   encodeURIComponent(
@@ -353,22 +355,21 @@ const search = (type, q) => fetch(`https://api.deezer.com/search/${type}?q=${
       ? q
       : Object.entries(q)
         .filter(
-          ([, value]) => !!value,
+          ([, value]) => !!value
         )
         .map(
-          ([key, value]) => `${key}:"${value}"`,
-        ).join(' '),
+          ([key, value]) => `${key}:"${value}"`
+        ).join(' ')
   )
 }`)
   .then(JSON.parse)
-  .then(res => res.data);
+  .then(res => res.data)
 
-
-const debug = false;
-const args = process.argv.slice(2);
-const options = removeBy(args, arg => arg.startsWith('-'));
-const [command] = args.splice(0, 1);
-const flac = options.includes('--flac') || options.includes('-f');
+const debug = false
+const args = process.argv.slice(2)
+const options = removeBy(args, arg => arg.startsWith('-'))
+const [command] = args.splice(0, 1)
+const flac = options.includes('--flac') || options.includes('-f')
 const help = `
 usage: dzdl <type> <attrs> [--flac]
 if type = song or s: attrs are track, artist, album
@@ -376,22 +377,21 @@ if type = album or a: attrs are album, artist
 example: dzdl album 'dark side of the moon' 'pink floyd'
 `.trim();
 
-
-(async function main() {
+(async function main () {
   if (!command || args.length === 0 || options.includes('-h') || options.includes('--help')) {
-    throw help;
+    throw help
   }
 
-  await login();
+  await login()
   switch (command) {
     case 'album':
-    case 'a':
+    case 'a': {
       await search('album', { album: args[0], artist: args[1] })
         .then((albums) => {
           if (albums.length === 0) {
-            throw new Error('No album found!');
+            throw new Error('No album found!')
           }
-          return albums;
+          return albums
         })
         .then(albums => prompts({
           type: 'select',
@@ -399,19 +399,20 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
           message: 'Pick an album',
           choices: albums.map(album => ({
             title: `${album.artist.name} - ${album.title}`,
-            value: album,
-          })),
+            value: album
+          }))
         }))
-        .then(({ album }) => handleAlbumDownload(album));
-      break;
+        .then(({ album }) => handleAlbumDownload(album))
+      break
+    }
     case 'song':
-    case 's':
+    case 's': {
       await search('track', { track: args[0], artist: args[1], album: args[2] })
         .then((tracks) => {
           if (tracks.length === 0) {
-            throw new Error('No song found!');
+            throw new Error('No song found!')
           }
-          return tracks;
+          return tracks
         })
         .then(songs => prompts({
           type: 'select',
@@ -419,25 +420,29 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
           message: 'Pick a song',
           choices: songs.map(song => ({
             title: `${song.artist.name} - ${song.title} (${song.album.title})`,
-            value: song,
-          })),
+            value: song
+          }))
         }))
-        .then(({ song }) => handleTrackDownload(song));
-      break;
+        .then(({ song }) => handleTrackDownload(song))
+      break
+    }
     case 'playlist':
-    case 'p':
-      await downloadTracks(`https://api.deezer.com/playlist/${args[0]}/tracks`);
-      break;
-    case 'migrate-to-2':
-      const paths = args;
-      const force = options.includes('--force') || options.includes('-f');
-      require('./migrate-to-2')(paths, force);
-      break;
-    default:
-      throw help;
+    case 'p': {
+      await downloadTracks(`https://api.deezer.com/playlist/${args[0]}/tracks`)
+      break
+    }
+    case 'migrate-to-2': {
+      const paths = args
+      const force = options.includes('--force') || options.includes('-f')
+      require('./migrate-to-2')(paths, force)
+      break
+    }
+    default: {
+      throw help
+    }
   }
 }()).catch((err) => {
-  if (debug) throw err;
-  console.error(typeof err !== 'object' ? err : err.message);
-  process.exitCode = 1;
-});
+  if (debug) throw err
+  console.error(typeof err !== 'object' ? err : err.message)
+  process.exitCode = 1
+})
