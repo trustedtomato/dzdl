@@ -428,7 +428,20 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
     }
     case 'playlist':
     case 'p': {
-      await downloadTracks(`https://api.deezer.com/playlist/${args[0]}/tracks`)
+      const playlists = await search('playlist', args[0])
+      if (playlists.length === 0) {
+        throw new Error('No album found!')
+      }
+      const { playlist } = await prompts({
+        type: 'select',
+        name: 'playlist',
+        message: 'Pick a playlist',
+        choices: playlists.map(playlist => ({
+          title: `${playlist.title} (${playlist.user.name}, ${playlist.nb_tracks} tracks)`,
+          value: playlist
+        }))
+      })
+      await downloadTracks(`https://api.deezer.com/playlist/${playlist.id}/tracks`)
       break
     }
     case 'migrate-to-2': {
