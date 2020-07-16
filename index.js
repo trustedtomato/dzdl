@@ -374,6 +374,7 @@ const help = `
 usage: dzdl <type> <attrs> [--flac]
 if type = song or s: attrs are track, artist, album
 if type = album or a: attrs are album, artist
+if type = playlist or p: attrs are query
 example: dzdl album 'dark side of the moon' 'pink floyd'
 `.trim();
 
