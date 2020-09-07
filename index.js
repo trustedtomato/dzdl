@@ -375,6 +375,7 @@ usage: dzdl <type> <attrs> [--flac]
 if type = song or s: attrs are track, artist, album
 if type = album or a: attrs are album, artist
 if type = playlist or p: attrs are query
+if type = playlist-id or pid: attrs are the ID of the playlist
 example: dzdl album 'dark side of the moon' 'pink floyd'
 `.trim();
 
@@ -431,7 +432,7 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
     case 'p': {
       const playlists = await search('playlist', args[0])
       if (playlists.length === 0) {
-        throw new Error('No album found!')
+        throw new Error('No playlist found!')
       }
       const { playlist } = await prompts({
         type: 'select',
@@ -443,6 +444,11 @@ example: dzdl album 'dark side of the moon' 'pink floyd'
         }))
       })
       await downloadTracks(`https://api.deezer.com/playlist/${playlist.id}/tracks`)
+      break
+    }
+    case 'playlist-id':
+    case 'pid': {
+      await downloadTracks(`https://api.deezer.com/playlist/${args[0]}/tracks`)
       break
     }
     case 'migrate-to-2': {
