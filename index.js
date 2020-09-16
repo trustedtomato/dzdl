@@ -59,29 +59,28 @@ const callApi = method => new Promise((resolve, reject) => {
   }, (err, res, body) => {
     if (!err && res.statusCode === 200) {
       resolve(body.results)
-    } else {
-      reject(new Error('Unable to load deezer.com'))
+    } else if (err && err.code === 'EAI_AGAIN') {
+      reject(new Error('Cannot access deezer.com, check your internet connection!'))
     }
   })
 })
 
-const setUserSession = async () => {
+const isLoggedIn = async () => {
   const userData = (await callApi('deezer.getUserData')).USER
-  if (!userData.USER_ID) {
-    throw new Error('Not logged in!')
-  }
+  return !!userData.USER_ID
 }
 
-const login = () => setUserSession().catch(async () => {
+const login = () => isLoggedIn().then(async (loggedIn) => {
+  if (loggedIn) return
   let initialArl = ''
   try {
     initialArl = readFileSync(join(__dirname, 'arl.txt'), { encoding: 'utf8' })
   } catch (err) {
     // continue as the file is just a helper for fucked up enviroments
   }
-  await prompts({
+  const { arl } = await prompts({
     type: 'text',
-    name: 'value',
+    name: 'arl',
     message: 'What\'s your arl cookie\'s value?',
     initial: initialArl,
     validate: async (arl) => {
@@ -107,15 +106,14 @@ const login = () => setUserSession().catch(async () => {
         'https://www.deezer.com/'
       )
 
-      return setUserSession()
-        .then(() => true)
-        .catch(() => 'Cannot login with this arl!')
-    }
-  }).then(({ value }) => {
-    if (!value) {
-      throw new Error('No valid arl cookie value entered!')
+      const isArlUsable = await isLoggedIn()
+      return isArlUsable ? true : 'Cannot login with this arl!'
     }
   })
+
+  if (!arl) {
+    throw new Error('No valid arl cookie value entered!')
+  }
 })
 
 const getBlowfishKey = (trackInfos) => {
