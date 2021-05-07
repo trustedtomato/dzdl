@@ -376,11 +376,11 @@ if type = playlist or p: attrs are query
 if type = playlist-id or pid: attrs are the ID of the playlist
 example: dzdl album 'dark side of the moon' 'pink floyd'
 
-logging in: Currently you have to manually login to Deezer and
-find the value of the 'arl' cookie, which will be requested
-if dzdl doesn't already have one. I recommend using a separate
-account for this, sharing your private details to a
-third-party service is usually not the wisest idea.
+logging in: Currently you have to manually login
+to Deezer and find the value of the 'arl' cookie.
+I recommend using a separate account for this,
+sharing your private details to a third-party service
+is usually not the wisest idea.
 `.trim();
 
 (async function main () {
