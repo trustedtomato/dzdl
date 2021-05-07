@@ -14,19 +14,19 @@
     "test": "jest"
   },
   "dependencies": {
-    "node-id3": "^0.1.17",
-    "prompts": "^2.3.2",
-    "request": "^2.88.0",
-    "sanitize-filename": "^1.6.1",
+    "node-id3": "^0.1.21",
+    "prompts": "^2.4.1",
+    "request": "^2.88.2",
+    "sanitize-filename": "^1.6.3",
     "tough-cookie": "^3.0.1"
   },
   "devDependencies": {
-    "eslint": "^7.4.0",
+    "eslint": "^7.25.0",
     "eslint-config-standard": "^14.1.1",
-    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^4.2.1",
-    "eslint-plugin-standard": "^4.0.1",
-    "jest": "^26.1.0"
+    "eslint-plugin-promise": "^4.3.1",
+    "eslint-plugin-standard": "^4.1.0",
+    "jest": "^26.6.3"
   }
 }
